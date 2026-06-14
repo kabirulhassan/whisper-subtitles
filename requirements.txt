@@ -1,0 +1,9 @@
+mlx-whisper
+silero-vad
+torch
+numpy
+google-genai
+python-dotenv
+
+# Optional — only needed for --isolate-vocals (vocal isolation / music removal)
+demucs
