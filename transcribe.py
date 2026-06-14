@@ -125,20 +125,30 @@ def _isolate_to_audio16k(path, start, end, progress, cache_path=None):
         return np.load(cache_path), 16000
 
     import torch
-    from demucs.api import Separator
+    from demucs.pretrained import get_model
+    from demucs.apply import apply_model
     from demucs.audio import convert_audio
+
+    model = get_model(DEMUCS_MODEL)
+    model.eval()
+    vocals_idx = model.sources.index("vocals")
+
+    stereo = _decode_stereo(path, model.samplerate, start, end)
+    if stereo.shape[1] == 0:  # clip starts at/after end of audio
+        return np.zeros(0, dtype=np.float32), 16000
+    wav = torch.from_numpy(stereo)
+    # Demucs' standard input normalization (see demucs/separate.py).
+    ref = wav.mean(0)
+    wav = (wav - ref.mean()) / (ref.std() + 1e-8)
 
     last_err = None
     for device in (_best_device(), "cpu"):
         try:
             progress(f"Isolating vocals with Demucs ({DEMUCS_MODEL}, {device}) — "
                      f"this can take a while...")
-            sep = Separator(model=DEMUCS_MODEL, device=device, progress=True)
-            stereo = _decode_stereo(path, sep.samplerate, start, end)
-            if stereo.shape[1] == 0:  # clip starts at/after end of audio
-                return np.zeros(0, dtype=np.float32), 16000
-            _, stems = sep.separate_tensor(torch.from_numpy(stereo), sep.samplerate)
-            vocals = convert_audio(stems["vocals"], sep.samplerate, 16000, 1)
+            sources = apply_model(model, wav[None], device=device, progress=True)[0]
+            vocals = sources[vocals_idx] * ref.std() + ref.mean()  # denormalize
+            vocals = convert_audio(vocals, model.samplerate, 16000, 1)
             out = vocals.squeeze(0).detach().cpu().numpy().astype(np.float32)
             if cache_path is not None:
                 try:
