@@ -5,5 +5,10 @@ numpy
 google-genai
 python-dotenv
 
+# GUI API
+fastapi
+uvicorn[standard]
+pydantic
+
 # Optional — only needed for --isolate-vocals (vocal isolation / music removal)
 demucs

@@ -49,6 +49,33 @@ Set your key in `.env`:
 GEMINI_API_KEY=...
 ```
 
+## GUI (local web UI)
+
+A browser-based UI is included for selecting videos, configuring all CLI options, watching live progress, and downloading subtitles.
+
+**Requirements:** Node.js 18+ (for the frontend dev server), plus the same Python setup as above.
+
+```bash
+# One-time: install web deps
+cd web && npm install && cd ..
+
+# Start API + UI (opens http://127.0.0.1:5173)
+chmod +x scripts/dev.sh
+./scripts/dev.sh
+```
+
+Or run the two servers manually:
+
+```bash
+source venv/bin/activate
+uvicorn api.server:app --host 127.0.0.1 --port 8765 --reload
+
+# separate terminal
+cd web && npm run dev
+```
+
+The UI uses a **native macOS file picker** (via the API) so large videos are referenced by path — nothing is uploaded through the browser. Progress streams over WebSocket; checkpoints and resume behavior match the CLI.
+
 ## Usage
 
 ```bash

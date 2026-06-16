@@ -25,6 +25,13 @@ import time
 import unicodedata
 
 DEFAULT_MODEL = "gemini-2.5-flash"
+# Ranked fallback chain when a batch fails on the primary model (tried in order).
+DEFAULT_MODEL_FALLBACKS = [
+    "gemini-2.5-flash",
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash",
+    "gemini-2.5-pro",
+]
 BATCH_SIZE = 40
 # Cues of surrounding context included on each side of a batch (not translated,
 # just for disambiguation). Gemini input is cheap, so a wide radius is worth it.
@@ -172,7 +179,25 @@ def _translate_batch(client, model, window, target_ids, max_wait, progress):
             for item in data if int(item["id"]) in target_ids}
 
 
-def translate_cues(cues, model: str = DEFAULT_MODEL, done=None, save=None,
+def _translate_batch_with_fallbacks(client, models, window, target_ids, max_wait, progress):
+    """Try each model in rank order until one succeeds."""
+    last_err = None
+    for rank, model in enumerate(models, start=1):
+        if rank > 1:
+            progress(f"  falling back to model #{rank}: {model}")
+        try:
+            return _translate_batch(client, model, window, target_ids, max_wait, progress)
+        except QuotaExhausted:
+            raise
+        except Exception as e:  # noqa: BLE001
+            last_err = e
+            progress(f"  warning: {model} failed ({e})")
+    if last_err:
+        raise last_err
+    return {}
+
+
+def translate_cues(cues, model: str = DEFAULT_MODEL, models=None, done=None, save=None,
                    max_wait: float = 120.0, context_radius: int = CONTEXT_RADIUS,
                    progress=print):
     """Attach an English ``translation`` to each cue in place and return them.
@@ -186,8 +211,24 @@ def translate_cues(cues, model: str = DEFAULT_MODEL, done=None, save=None,
     included). After each batch, ``save(done)`` is called so progress can be
     checkpointed. A non-quota batch failure keeps the original text. A wait
     exceeding ``max_wait`` raises ``QuotaExhausted``.
+
+    ``models`` is an ordered fallback list (primary first). If omitted, uses
+    ``[model]`` when ``model`` is set, otherwise ``DEFAULT_MODEL_FALLBACKS``.
     """
     from google import genai
+
+    if models is None:
+        models = [model] if model else list(DEFAULT_MODEL_FALLBACKS)
+    else:
+        models = [m for m in models if m and str(m).strip()]
+        if not models:
+            models = list(DEFAULT_MODEL_FALLBACKS)
+
+    primary = models[0]
+    if len(models) > 1:
+        progress(f"Translation models (ranked fallbacks): {', '.join(models)}")
+    else:
+        progress(f"Translating with {primary}...")
 
     done = {} if done is None else done
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
@@ -216,8 +257,8 @@ def translate_cues(cues, model: str = DEFAULT_MODEL, done=None, save=None,
         progress(f"Translating batch {i}/{len(batches)} "
                  f"({len(target_cues)} cues, +{len(window) - len(target_cues)} context)")
         try:
-            mapping = _translate_batch(client, model, window, target_ids,
-                                       max_wait, progress)
+            mapping = _translate_batch_with_fallbacks(
+                client, models, window, target_ids, max_wait, progress)
         except QuotaExhausted:
             raise
         except Exception as e:  # noqa: BLE001 - degrade gracefully per batch

@@ -3,3 +3,5 @@ __pycache__/
 output/
 venv/
 .venv/
+web/node_modules/
+web/dist/
