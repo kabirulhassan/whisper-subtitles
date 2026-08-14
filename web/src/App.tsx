@@ -132,9 +132,6 @@ export default function App() {
               <h1 className="text-lg font-semibold tracking-tight text-zinc-100">
                 Whisperer
               </h1>
-              <p className="hidden truncate text-xs text-stage-muted sm:block">
-                Mixed-language → English subtitles
-              </p>
             </div>
             <StatusPill health={health} running={running} />
           </div>
@@ -143,8 +140,9 @@ export default function App() {
         <main className="mx-auto max-w-5xl space-y-2.5 px-4 py-3 sm:px-5 sm:py-4">
           {needsKey && (
             <div className="rounded-lg border border-amber-500/15 bg-amber-500/[0.04] px-3 py-2 text-xs text-amber-200/90">
-              GEMINI_API_KEY missing — add to <code className="text-amber-100/80">.env</code> or
-              use transcribe-only.
+              GEMINI_API_KEY missing — add to{" "}
+              <code className="text-amber-100/80">.env</code> or use
+              transcribe-only.
             </div>
           )}
 
@@ -200,8 +198,7 @@ function StatusPill({
   if (!health) {
     return (
       <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/[0.06] px-2 py-0.5 text-[11px] text-stage-muted">
-        <span className="h-1 w-1 rounded-full bg-zinc-600" />
-        …
+        <span className="h-1 w-1 rounded-full bg-zinc-600" />…
       </span>
     );
   }
@@ -215,7 +212,9 @@ function StatusPill({
           : "border-amber-500/20 bg-amber-500/5 text-amber-400/90"
       }`}
     >
-      <span className={`h-1 w-1 rounded-full ${ok ? "bg-emerald-400" : "bg-amber-400"}`} />
+      <span
+        className={`h-1 w-1 rounded-full ${ok ? "bg-emerald-400" : "bg-amber-400"}`}
+      />
       {ok ? "Ready" : "Setup needed"}
     </span>
   );

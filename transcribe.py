@@ -41,6 +41,44 @@ DECODE_MARGIN = 0.5
 # `initial_prompt`, so sentences/names continue across boundaries.
 PROMPT_WORDS = 30
 
+# A run of the same short token repeated at least this many times in a row is
+# treated as a decoder repetition-loop hallucination (e.g. "Der Der Der Der…"),
+# not real speech, and is dropped. Longer tokens are exempted since a repeated
+# full word/phrase is far more likely to be genuine dialogue (e.g. "No, no, no").
+LOOP_MIN_REPEATS = 4
+LOOP_MAX_TOKEN_LEN = 8
+
+
+def _normalize_word(word: str) -> str:
+    return word.strip().strip(".,!?…।॥").lower()
+
+
+def _strip_repetition_loops(words: list[dict]) -> list[dict]:
+    """Drop runs of a short token repeated ``LOOP_MIN_REPEATS+`` times in a row.
+
+    Whisper occasionally decodes silence/music/SFX as a repeated filler token
+    (e.g. "Der Der Der Der…") instead of stopping. These runs carry no meaning
+    and, left in, pollute both the emitted cues and the next region's
+    ``initial_prompt`` seed. Longer tokens/phrases repeated a few times (e.g. a
+    real "No, no, no.") are left untouched.
+    """
+    kept = []
+    i = 0
+    n = len(words)
+    while i < n:
+        token = _normalize_word(words[i]["word"])
+        if token and len(token) <= LOOP_MAX_TOKEN_LEN:
+            j = i + 1
+            while j < n and _normalize_word(words[j]["word"]) == token:
+                j += 1
+            run_len = j - i
+            if run_len >= LOOP_MIN_REPEATS:
+                i = j
+                continue
+        kept.append(words[i])
+        i += 1
+    return kept
+
 
 def _safe(text: str) -> str:
     """NFC-normalize and wrap in LTR marks so complex-script terminals render better."""
@@ -363,6 +401,9 @@ def transcribe(path: str, use_vad: bool = True, start: float = 0.0,
                         "start": w["start"] + offset,
                         "end": w["end"] + offset,
                     })
+            if not kept:
+                continue
+            kept = _strip_repetition_loops(kept)
             if not kept:
                 continue
             text = "".join(x["word"] for x in kept).strip()

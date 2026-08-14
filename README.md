@@ -85,19 +85,21 @@ python generate.py path/to/video.mp4
 
 Options:
 
-| Flag | Effect |
-|------|--------|
-| `--model MODEL` | Gemini model for translation (default `gemini-2.5-flash`; e.g. `--model gemini-3.5-flash` or `gemini-2.5-pro` for the hardest audio) |
-| `--bilingual` | Write the original line **and** the English translation in each cue |
-| `--no-translate` | Transcribe only — output the native (mixed-language) transcript |
-| `--no-vad` | Disable voice-activity segmentation (transcribe the whole file in one pass) |
-| `--isolate-vocals` | Strip background music/score with [Demucs](https://github.com/adefossez/demucs) before transcribing — best for music-heavy audio (slower; needs `pip install demucs`) |
-| `--start TIME` | Process only from this time — for smoke testing (`SS`, `MM:SS`, or `HH:MM:SS`) |
-| `--end TIME` | Process only up to this time (same formats) |
-| `--languages LIST` | Allowlist for language auto-detection (default `bn,hi,en`). Pass `auto` for unrestricted. |
-| `--context N` | Neighboring cues of context sent with each translation batch (default `12`; `0` disables) |
-| `--max-wait SECONDS` | Max time to auto-pause on a rate limit before checkpointing and exiting to resume later (default `120`) |
-| `--fresh` | Ignore any existing checkpoint and start over |
+
+| Flag                 | Effect                                                                                                                                                                |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--model MODEL`      | Gemini model for translation (default `gemini-2.5-flash`; e.g. `--model gemini-3.5-flash` or `gemini-2.5-pro` for the hardest audio)                                  |
+| `--bilingual`        | Write the original line **and** the English translation in each cue                                                                                                   |
+| `--no-translate`     | Transcribe only — output the native (mixed-language) transcript                                                                                                       |
+| `--no-vad`           | Disable voice-activity segmentation (transcribe the whole file in one pass)                                                                                           |
+| `--isolate-vocals`   | Strip background music/score with [Demucs](https://github.com/adefossez/demucs) before transcribing — best for music-heavy audio (slower; needs `pip install demucs`) |
+| `--start TIME`       | Process only from this time — for smoke testing (`SS`, `MM:SS`, or `HH:MM:SS`)                                                                                        |
+| `--end TIME`         | Process only up to this time (same formats)                                                                                                                           |
+| `--languages LIST`   | Allowlist for language auto-detection (default `bn,hi,en`). Pass `auto` for unrestricted.                                                                             |
+| `--context N`        | Neighboring cues of context sent with each translation batch (default `12`; `0` disables)                                                                             |
+| `--max-wait SECONDS` | Max time to auto-pause on a rate limit before checkpointing and exiting to resume later (default `120`)                                                               |
+| `--fresh`            | Ignore any existing checkpoint and start over                                                                                                                         |
+
 
 ### Smoke testing a clip
 
@@ -140,7 +142,8 @@ python generate.py ~/Videos/interview.mp4 --bilingual
 
 ## Notes
 
-- **First run** downloads the `large-v3` MLX weights (~3 GB) from Hugging Face to `~/.cache/huggingface`; later runs reuse them.
+- **First run** downloads the `large-v3` MLX weights (~~3 GB) from Hugging Face to `~~/.cache/huggingface`; later runs reuse them.
 - The audio never leaves your machine — only the **transcribed text** is sent to the Gemini API for translation. Use `--no-translate` to keep everything fully local.
 - Translation is batched to keep cost low. Each batch is sent with a **context radius** of neighboring cues (`--context`, default 12) included as read-only context — and the already-finalized English of done neighbors — so Gemini can use contiguous surrounding text to resolve pronouns, names, and sentences that span cues, and to fix likely transcription errors. Gemini input is cheap, so this costs little. If a batch fails, those cues keep their original text so the timeline is never broken.
 - The `output/` directory is created automatically and is git-ignored.
+
