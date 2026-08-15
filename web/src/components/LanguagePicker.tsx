@@ -35,42 +35,51 @@ export function LanguagePicker({ value, onChange, disabled }: LanguagePickerProp
   }
 
   return (
-    <div>
-      <div className="mb-1.5 flex items-center gap-1">
-        <span className="text-[10px] text-zinc-500">Spoken languages</span>
-        <InfoTip text="Which languages may appear in the audio. Whisper uses this to avoid mis-detecting the wrong language. Choose Auto only if the mix is unpredictable." />
-      </div>
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5 font-mono text-[11px] font-medium tracking-wider uppercase text-[#949db2]">
+          <span>Source Languages</span>
+          <InfoTip text="Restricts Whisper detection to target languages to avoid misclassifications in mixed audio." />
+        </div>
 
-      <label className="mb-2 flex cursor-pointer items-center gap-1.5 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-40">
-        <input
-          type="checkbox"
-          checked={auto}
-          onChange={(e) => setAuto(e.target.checked)}
-          disabled={disabled}
-          className="h-3 w-3 shrink-0 rounded accent-spotlight"
-        />
-        <span className="text-xs text-zinc-300">Auto-detect any language</span>
-        <InfoTip text="No restriction — Whisper may choose from all ~99 languages. Can misfire on mixed South Asian audio." />
-      </label>
-
-      <div
-        className={`grid grid-cols-3 gap-x-2 gap-y-1 ${auto ? "pointer-events-none opacity-40" : ""}`}
-      >
-        {LANGUAGE_OPTIONS.map(({ code, name }) => (
-          <label
-            key={code}
-            className="flex cursor-pointer items-center gap-1.5 py-0.5 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-40"
-          >
+        {/* Auto-detect toggle switch */}
+        <label className="flex cursor-pointer items-center gap-2 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-40">
+          <span className="font-mono text-[10px] text-[#949db2]">Auto-detect</span>
+          <div className="relative inline-flex items-center">
             <input
               type="checkbox"
-              checked={selected.has(code)}
-              onChange={() => toggle(code)}
-              disabled={disabled || auto}
-              className="h-3 w-3 shrink-0 rounded accent-spotlight"
+              checked={auto}
+              onChange={(e) => setAuto(e.target.checked)}
+              disabled={disabled}
+              className="peer sr-only"
             />
-            <span className="text-xs text-zinc-300">{name}</span>
-          </label>
-        ))}
+            <div className="h-4 w-7 rounded-full bg-[#1f1f23] border border-[#2c3347] transition-colors peer-checked:bg-primary peer-checked:border-primary peer-focus:outline-none" />
+            <div className="absolute left-0.5 top-0.5 h-3 w-3 rounded-full bg-[#e3e2e6] transition-transform peer-checked:translate-x-3 peer-checked:bg-white" />
+          </div>
+        </label>
+      </div>
+
+      {/* Language Chips */}
+      <div className={`flex flex-wrap gap-1.5 ${auto ? "pointer-events-none opacity-40" : ""}`}>
+        {LANGUAGE_OPTIONS.map(({ code, name }) => {
+          const isSelected = selected.has(code);
+          return (
+            <button
+              type="button"
+              key={code}
+              onClick={() => toggle(code)}
+              disabled={disabled || auto}
+              className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 font-mono text-xs transition-all duration-150 active:scale-95 ${
+                isSelected
+                  ? "border border-primary/50 bg-primary/15 text-primary-light shadow-sm"
+                  : "border border-[#2c3347] bg-[#0d0e11]/80 text-[#949db2] hover:border-[#464554] hover:text-[#e3e2e6]"
+              }`}
+            >
+              <span>{name}</span>
+              <span className="text-[10px] opacity-60 font-mono">({code})</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

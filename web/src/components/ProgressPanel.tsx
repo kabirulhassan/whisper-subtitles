@@ -2,8 +2,6 @@ import { useEffect, useRef } from "react";
 import type { ProgressEvent } from "../types";
 import { Card } from "./ui/Card";
 
-const STAGES = ["transcribe", "build_cues", "translate", "write"] as const;
-
 function formatEta(seconds: number | undefined): string {
   if (seconds === undefined) return "";
   const h = Math.floor(seconds / 3600);
@@ -14,21 +12,6 @@ function formatEta(seconds: number | undefined): string {
   return `${s}s`;
 }
 
-function stageLabel(stage: string): string {
-  switch (stage) {
-    case "transcribe":
-      return "Transcribe";
-    case "build_cues":
-      return "Cues";
-    case "translate":
-      return "Translate";
-    case "write":
-      return "Write";
-    default:
-      return stage;
-  }
-}
-
 interface ProgressPanelProps {
   events: ProgressEvent[];
   status: string | null;
@@ -37,6 +20,31 @@ interface ProgressPanelProps {
 
 export function ProgressPanel({ events, status, error }: ProgressPanelProps) {
   const logRef = useRef<HTMLDivElement>(null);
+
+  const hasIsolate = events.some(
+    (e) => e.stage === "isolate_vocals" || e.type === "isolate_progress",
+  );
+
+  const stages = hasIsolate
+    ? (["isolate_vocals", "transcribe", "build_cues", "translate", "write"] as const)
+    : (["transcribe", "build_cues", "translate", "write"] as const);
+
+  function stageLabel(stage: string): string {
+    switch (stage) {
+      case "isolate_vocals":
+        return "1. Demucs Vocals";
+      case "transcribe":
+        return hasIsolate ? "2. VAD & Whisper" : "1. VAD & Whisper";
+      case "build_cues":
+        return hasIsolate ? "3. Cue Alignment" : "2. Cue Alignment";
+      case "translate":
+        return hasIsolate ? "4. Gemini Translation" : "3. Gemini Translation";
+      case "write":
+        return hasIsolate ? "5. SRT Assembly" : "4. SRT Assembly";
+      default:
+        return stage;
+    }
+  }
 
   const completedStages = new Set(
     events.filter((e) => e.type === "stage_completed").map((e) => e.stage),
@@ -49,6 +57,9 @@ export function ProgressPanel({ events, status, error }: ProgressPanelProps) {
     return started.length > 0 ? started[started.length - 1] : undefined;
   })();
 
+  const latestIsolate = [...events]
+    .reverse()
+    .find((e) => e.type === "isolate_progress" && e.current && e.total);
   const latestRegion = [...events]
     .reverse()
     .find((e) => e.type === "region_progress" && e.current && e.total);
@@ -68,35 +79,57 @@ export function ProgressPanel({ events, status, error }: ProgressPanelProps) {
   }, [logs.length]);
 
   return (
-    <Card title="Stage" className="animate-fade-up" delay={150} compact>
-      <div className="mb-2 flex items-center gap-1">
-        {STAGES.map((stage, i) => {
+    <Card
+      title="Live Execution Pipeline"
+      badge={
+        status === "running" ? (
+          <span className="flex items-center gap-1.5 rounded-full bg-secondary/15 px-2.5 py-0.5 font-mono text-[10px] font-semibold text-secondary border border-secondary/30">
+            <span className="h-1.5 w-1.5 animate-ping rounded-full bg-secondary" />
+            {activeStage === "isolate_vocals" ? "Demucs Vocal Isolation Active" : "Live Engine Active"}
+          </span>
+        ) : status === "completed" ? (
+          <span className="rounded-full bg-status-success/15 px-2.5 py-0.5 font-mono text-[10px] font-semibold text-status-success border border-status-success/30">
+            ✓ Finished
+          </span>
+        ) : null
+      }
+      delay={150}
+      compact
+    >
+      {/* Visual Timeline Stepper */}
+      <div className="mb-4 flex items-center justify-between gap-1 rounded-xl border border-[#2c3347] bg-[#0d0e11] p-3">
+        {stages.map((stage, i) => {
           const done = completedStages.has(stage);
           const active = activeStage === stage;
           return (
-            <div key={stage} className="flex min-w-0 flex-1 items-center gap-1">
+            <div key={stage} className="flex min-w-0 flex-1 items-center gap-2">
               <div
-                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-medium ${
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-mono text-[11px] font-semibold transition-all ${
                   done
-                    ? "bg-spotlight/20 text-spotlight"
+                    ? "bg-status-success/20 text-status-success border border-status-success/40"
                     : active
-                      ? "animate-pulse-soft bg-spotlight/30 text-spotlight"
-                      : "bg-white/[0.04] text-zinc-600"
+                      ? "animate-pulse bg-primary text-white shadow-glow-indigo"
+                      : "bg-[#1f1f23] text-[#555d73] border border-[#2c3347]"
                 }`}
               >
                 {done ? "✓" : i + 1}
               </div>
-              <span
-                className={`hidden truncate text-[10px] sm:inline ${
-                  active ? "text-spotlight" : done ? "text-zinc-400" : "text-zinc-600"
-                }`}
-              >
-                {stageLabel(stage)}
-              </span>
-              {i < STAGES.length - 1 && (
+              <div className="hidden min-w-0 flex-col sm:flex">
+                <span
+                  className={`truncate font-mono text-[11px] font-medium ${
+                    active ? "text-primary-light font-semibold" : done ? "text-[#e3e2e6]" : "text-[#555d73]"
+                  }`}
+                >
+                  {stageLabel(stage)}
+                </span>
+                <span className="text-[9px] font-mono text-[#949db2]">
+                  {done ? "Completed" : active ? "Processing" : "Pending"}
+                </span>
+              </div>
+              {i < stages.length - 1 && (
                 <div
-                  className={`mx-0.5 h-px flex-1 ${
-                    done ? "bg-spotlight/25" : "bg-white/[0.06]"
+                  className={`mx-1.5 h-0.5 flex-1 transition-colors ${
+                    done ? "bg-status-success/50" : active ? "bg-primary/50" : "bg-[#1f1f23]"
                   }`}
                 />
               )}
@@ -105,50 +138,85 @@ export function ProgressPanel({ events, status, error }: ProgressPanelProps) {
         })}
       </div>
 
-      <div className="mb-2 grid gap-2 sm:grid-cols-2">
+      {/* Granular Telemetry Progress Meters */}
+      <div className="mb-3 grid gap-3 sm:grid-cols-2">
+        {latestIsolate && (
+          <div className="rounded-lg border border-[#2c3347] bg-[#12151d] p-2.5">
+            <ProgressBar
+              label={`Vocal Isolation: Chunk ${latestIsolate.current}/${latestIsolate.total}`}
+              eta={latestIsolate.eta_seconds}
+              percent={((latestIsolate.current ?? 0) / (latestIsolate.total ?? 1)) * 100}
+              gradient="from-teal-500 via-cyan-500 to-secondary-light"
+            />
+          </div>
+        )}
         {latestRegion && (
-          <ProgressBar
-            label={`Region ${latestRegion.current}/${latestRegion.total}`}
-            eta={latestRegion.eta_seconds}
-            percent={((latestRegion.current ?? 0) / (latestRegion.total ?? 1)) * 100}
-          />
+          <div className="rounded-lg border border-[#2c3347] bg-[#12151d] p-2.5">
+            <ProgressBar
+              label={`Region ${latestRegion.current}/${latestRegion.total}`}
+              eta={latestRegion.eta_seconds}
+              percent={((latestRegion.current ?? 0) / (latestRegion.total ?? 1)) * 100}
+              gradient="from-cyan-500 to-secondary-light"
+            />
+          </div>
         )}
         {latestBatch && (
-          <ProgressBar
-            label={`Batch ${latestBatch.current}/${latestBatch.total}`}
-            eta={latestBatch.eta_seconds}
-            percent={((latestBatch.current ?? 0) / (latestBatch.total ?? 1)) * 100}
-          />
+          <div className="rounded-lg border border-[#2c3347] bg-[#12151d] p-2.5">
+            <ProgressBar
+              label={`Translation Batch ${latestBatch.current}/${latestBatch.total}`}
+              eta={latestBatch.eta_seconds}
+              percent={((latestBatch.current ?? 0) / (latestBatch.total ?? 1)) * 100}
+              gradient="from-indigo-600 to-primary-light"
+            />
+          </div>
         )}
       </div>
 
-      {(quotaEvent || error || (status && !error)) && (
-        <div className="mb-2 space-y-1">
+      {/* Quota or Error notices */}
+      {(quotaEvent || error || (status && !error && status !== "running" && status !== "completed")) && (
+        <div className="mb-3 space-y-1 rounded-lg border border-[#2c3347] bg-[#12151d] p-2.5">
           {quotaEvent && (
-            <p className="text-[11px] text-amber-200/80">
-              Rate limit — progress saved, resume later.
+            <p className="font-mono text-xs text-status-warning flex items-center gap-1.5">
+              <span>⚠</span>
+              <span>Rate limit reached — progress safely checkpointed to disk.</span>
             </p>
           )}
-          {error && <p className="text-[11px] text-red-300/90">{error}</p>}
+          {error && (
+            <p className="font-mono text-xs text-status-error flex items-center gap-1.5">
+              <span>✕</span>
+              <span>{error}</span>
+            </p>
+          )}
           {status && !error && !quotaEvent && (
-            <p className="text-[11px] text-zinc-500">{status}</p>
+            <p className="font-mono text-xs text-[#949db2]">{status}</p>
           )}
         </div>
       )}
 
-      <div
-        ref={logRef}
-        className="max-h-28 overflow-y-auto rounded-lg bg-black/30 px-2 py-1.5 font-mono text-[10px] leading-snug text-zinc-500"
-      >
-        {logs.length === 0 ? (
-          <p className="text-zinc-600">Waiting…</p>
-        ) : (
-          logs.map((line, i) => (
-            <div key={i} className="whitespace-pre-wrap break-words">
-              {line}
-            </div>
-          ))
-        )}
+      {/* Dark Terminal Log Drawer */}
+      <div className="flex flex-col rounded-lg border border-[#2c3347] bg-[#050608]">
+        <div className="flex items-center justify-between border-b border-[#2c3347] px-3 py-1.5 bg-[#0d0e11]">
+          <div className="flex items-center gap-2 font-mono text-[10px] text-[#949db2]">
+            <span className="inline-block h-2 w-2 rounded-full bg-primary animate-pulse" />
+            <span>TERMINAL LOG STREAM</span>
+          </div>
+          <span className="font-mono text-[10px] text-secondary">Apple MLX Metal</span>
+        </div>
+        <div
+          ref={logRef}
+          className="max-h-36 overflow-y-auto p-2.5 font-mono text-[11px] leading-relaxed text-[#949db2]"
+        >
+          {logs.length === 0 ? (
+            <p className="text-[#555d73] italic">Waiting for pipeline events…</p>
+          ) : (
+            logs.map((line, i) => (
+              <div key={i} className="whitespace-pre-wrap break-words text-[#e3e2e6]">
+                <span className="text-secondary select-none mr-1.5">›</span>
+                {line}
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </Card>
   );
@@ -158,20 +226,22 @@ function ProgressBar({
   label,
   eta,
   percent,
+  gradient = "from-indigo-600 to-cyan-400",
 }: {
   label: string;
   eta?: number;
   percent: number;
+  gradient?: string;
 }) {
   return (
     <div>
-      <div className="mb-0.5 flex justify-between text-[10px] text-zinc-500">
-        <span>{label}</span>
-        {eta !== undefined && <span>{formatEta(eta)}</span>}
+      <div className="mb-1.5 flex justify-between font-mono text-xs">
+        <span className="text-[#e3e2e6] font-medium">{label}</span>
+        <span className="text-secondary">{eta !== undefined ? `ETA ${formatEta(eta)}` : `${Math.round(percent)}%`}</span>
       </div>
-      <div className="h-[2px] overflow-hidden rounded-full bg-white/[0.04]">
+      <div className="h-2 overflow-hidden rounded-full bg-[#1f1f23] border border-[#2c3347]/80">
         <div
-          className="h-full rounded-full bg-gradient-to-r from-spotlight-dim to-spotlight transition-[width] duration-500 ease-out"
+          className={`h-full rounded-full bg-gradient-to-r ${gradient} transition-[width] duration-500 ease-out shadow-sm`}
           style={{ width: `${percent}%` }}
         />
       </div>

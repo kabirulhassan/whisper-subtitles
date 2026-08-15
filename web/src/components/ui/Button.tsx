@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
-type Variant = "primary" | "ghost" | "danger";
+type Variant = "primary" | "secondary" | "ghost" | "danger";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
@@ -10,11 +10,13 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variants: Record<Variant, string> = {
   primary:
-    "border border-spotlight/30 bg-spotlight/90 text-stage font-medium hover:bg-spotlight hover:border-spotlight/50",
+    "border border-indigo-400/40 bg-gradient-to-r from-indigo-600 via-indigo-500 to-indigo-600 text-white font-medium shadow-glow-indigo hover:brightness-110 active:brightness-95",
+  secondary:
+    "border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 font-medium hover:bg-cyan-500/20 hover:border-cyan-400/50 active:bg-cyan-500/30",
   ghost:
-    "border border-white/[0.08] bg-transparent text-zinc-300 hover:border-white/[0.14] hover:bg-white/[0.03]",
+    "border border-[#2c3347] bg-[#12151d]/80 text-[#e3e2e6] hover:border-cyan-500/50 hover:bg-[#1c202b] active:bg-[#0d0e11]",
   danger:
-    "border border-red-500/20 bg-transparent text-red-300/90 hover:border-red-500/40 hover:bg-red-500/5",
+    "border border-red-500/30 bg-red-500/10 text-red-300 hover:border-red-500/60 hover:bg-red-500/20 active:bg-red-500/30",
 };
 
 export function Button({
@@ -27,7 +29,7 @@ export function Button({
   return (
     <button
       type="button"
-      className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs transition-all duration-200 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm sm:py-2 ${variants[variant]} ${glow ? "shadow-glow-sm hover:shadow-glow" : ""} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-xs font-medium transition-all duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm ${variants[variant]} ${glow ? "shadow-glow-indigo" : ""} ${className}`}
       {...props}
     >
       {children}

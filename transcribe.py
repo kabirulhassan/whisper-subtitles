@@ -150,6 +150,29 @@ def _decode_stereo(path: str, sr: int, start: float = 0.0, end=None):
     return np.ascontiguousarray(a.reshape(-1, 2).T)  # [2, N]
 
 
+class _DemucsProgressWrapper:
+    """Wrapper around Demucs' chunk futures to report granular percentage and ETA."""
+    _current_progress = staticmethod(_log)
+
+    def __init__(self, iterable, *args, **kwargs):
+        self.iterable = list(iterable)
+        self.total = len(self.iterable)
+        self.start_time = time.monotonic()
+        self.current = 0
+        self.progress = _DemucsProgressWrapper._current_progress
+
+    def __iter__(self):
+        for item in self.iterable:
+            yield item
+            self.current += 1
+            elapsed = time.monotonic() - self.start_time
+            rate = elapsed / max(1, self.current)
+            remaining = rate * (self.total - self.current)
+            percent = int((self.current / max(1, self.total)) * 100)
+            eta_str = _fmt_dur(remaining)
+            self.progress(f"Isolating vocals: chunk {self.current}/{self.total} ({percent}%) — ETA {eta_str}")
+
+
 def _isolate_to_audio16k(path, start, end, progress, cache_path=None):
     """Isolate the vocal stem with Demucs; return (16 kHz mono float32, 16000).
 
@@ -163,6 +186,7 @@ def _isolate_to_audio16k(path, start, end, progress, cache_path=None):
         return np.load(cache_path), 16000
 
     import torch
+    import demucs.apply
     from demucs.pretrained import get_model
     from demucs.apply import apply_model
     from demucs.audio import convert_audio
@@ -180,11 +204,20 @@ def _isolate_to_audio16k(path, start, end, progress, cache_path=None):
     wav = (wav - ref.mean()) / (ref.std() + 1e-8)
 
     last_err = None
+    orig_tqdm = getattr(demucs.apply.tqdm, "tqdm", None)
+
     for device in (_best_device(), "cpu"):
         try:
             progress(f"Isolating vocals with Demucs ({DEMUCS_MODEL}, {device}) — "
                      f"this can take a while...")
-            sources = apply_model(model, wav[None], device=device, progress=True)[0]
+            _DemucsProgressWrapper._current_progress = progress
+            demucs.apply.tqdm.tqdm = _DemucsProgressWrapper
+            try:
+                sources = apply_model(model, wav[None], device=device, progress=True)[0]
+            finally:
+                if orig_tqdm is not None:
+                    demucs.apply.tqdm.tqdm = orig_tqdm
+
             vocals = sources[vocals_idx] * ref.std() + ref.mean()  # denormalize
             vocals = convert_audio(vocals, model.samplerate, 16000, 1)
             out = vocals.squeeze(0).detach().cpu().numpy().astype(np.float32)
@@ -301,11 +334,13 @@ def transcribe(path: str, use_vad: bool = True, start: float = 0.0,
     if isolate_vocals:
         # Demucs decodes the clip itself (at 44.1 kHz) and returns 16 kHz vocals;
         # `audio` is already sliced, so `start` stays only as the absolute offset.
+        progress("Starting vocal isolation (Demucs)...")
         audio, sr = _isolate_to_audio16k(path, start, end, progress, vocals_cache)
         if audio.size == 0:
             raise ValueError(
                 f"--start {start:.1f}s is at/after the end of the audio."
             )
+        progress("Vocal isolation complete.")
     else:
         progress("Decoding audio (ffmpeg)...")
         audio, sr = _load_audio(path)

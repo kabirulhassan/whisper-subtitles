@@ -18,7 +18,7 @@ EXIT_SUCCESS = 0
 EXIT_ERROR = 1
 EXIT_QUOTA = 2
 
-StageName = Literal["transcribe", "build_cues", "translate", "write"]
+StageName = Literal["isolate_vocals", "transcribe", "build_cues", "translate", "write"]
 JobStatus = Literal["pending", "running", "completed", "failed", "quota_paused", "cancelled"]
 
 
@@ -291,6 +291,9 @@ def _parse_eta_seconds(msg: str) -> float | None:
 def _make_progress_adapter(on_event: Callable[[ProgressEvent], None],
                            cancel_event: threading.Event | None = None):
     """Wrap string progress messages into structured ProgressEvents."""
+    isolate_start_re = re.compile(r"Starting vocal isolation")
+    isolate_chunk_re = re.compile(r"Isolating vocals: chunk (\d+)/(\d+)")
+    isolate_done_re = re.compile(r"Vocal isolation complete")
     region_re = re.compile(
         r"Transcribing region (\d+)/(\d+)"
     )
@@ -308,6 +311,39 @@ def _make_progress_adapter(on_event: Callable[[ProgressEvent], None],
 
     def progress(msg: str):
         emit(ProgressEvent(type="log", message=msg))
+
+        if isolate_start_re.search(msg):
+            emit(ProgressEvent(
+                type="stage_started",
+                stage="isolate_vocals",
+                message=msg,
+            ))
+            return
+
+        m = isolate_chunk_re.search(msg)
+        if m:
+            emit(ProgressEvent(
+                type="isolate_progress",
+                stage="isolate_vocals",
+                current=int(m.group(1)),
+                total=int(m.group(2)),
+                eta_seconds=_parse_eta_seconds(msg),
+                message=msg,
+            ))
+            return
+
+        if isolate_done_re.search(msg):
+            emit(ProgressEvent(
+                type="stage_completed",
+                stage="isolate_vocals",
+                message=msg,
+            ))
+            emit(ProgressEvent(
+                type="stage_started",
+                stage="transcribe",
+                message="Starting speech recognition (Whisper)...",
+            ))
+            return
 
         m = region_re.search(msg)
         if m:
@@ -477,7 +513,8 @@ def run_pipeline(
 
     # --- stage 1: transcribe ---
     if not transcription_complete:
-        _emit(ProgressEvent(type="stage_started", stage="transcribe"))
+        if not config.isolate_vocals:
+            _emit(ProgressEvent(type="stage_started", stage="transcribe"))
         if suffix and not segments:
             end_label = "end" if config.end is None else f"{config.end:g}s"
             progress(f"Smoke test: processing {config.start:g}s - {end_label} only.")

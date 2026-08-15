@@ -38,7 +38,7 @@ export interface JobStatus {
 export interface ProgressEvent {
   type: string;
   message?: string;
-  stage?: "transcribe" | "build_cues" | "translate" | "write";
+  stage?: "isolate_vocals" | "transcribe" | "build_cues" | "translate" | "write";
   current?: number;
   total?: number;
   eta_seconds?: number;

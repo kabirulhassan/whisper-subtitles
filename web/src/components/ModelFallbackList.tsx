@@ -30,7 +30,7 @@ export function ModelFallbackList({ models, onChange, disabled }: ModelFallbackL
   }
 
   return (
-    <ol className="space-y-0.5">
+    <ol className="space-y-1.5">
       {GEMINI_MODEL_OPTIONS.map((option) => {
         const rank = models.indexOf(option.id);
         const isOn = rank >= 0;
@@ -40,8 +40,10 @@ export function ModelFallbackList({ models, onChange, disabled }: ModelFallbackL
         return (
           <li
             key={option.id}
-            className={`flex items-center gap-1.5 rounded-lg px-2 py-1 transition-colors ${
-              isOn ? "bg-spotlight/[0.06]" : "opacity-40"
+            className={`flex items-center gap-2 rounded-lg border p-2 transition-all duration-150 ${
+              isOn
+                ? "border-[#2c3347] bg-[#12151d] shadow-sm hover:border-primary/40"
+                : "border-transparent bg-[#0d0e11]/40 opacity-40"
             }`}
           >
             <input
@@ -49,25 +51,36 @@ export function ModelFallbackList({ models, onChange, disabled }: ModelFallbackL
               checked={isOn}
               onChange={() => toggle(option.id)}
               disabled={disabled || (isOn && models.length <= 1)}
-              className="h-3 w-3 shrink-0 rounded accent-spotlight"
+              className="h-3.5 w-3.5 shrink-0 rounded accent-indigo-500 bg-[#090a0d] border-[#2c3347] cursor-pointer"
               aria-label={`Include ${option.label}`}
             />
+
+            {/* Rank badge */}
             {isOn && (
-              <span className="w-4 shrink-0 text-center text-[10px] font-medium text-spotlight">
-                {rank + 1}
+              <span
+                className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold ${
+                  rank === 0
+                    ? "bg-primary/20 text-primary-light border border-primary/30"
+                    : "bg-[#1f1f23] text-[#949db2] border border-[#2c3347]"
+                }`}
+              >
+                {rank === 0 ? "Primary" : `#${rank + 1}`}
               </span>
             )}
-            <span className="min-w-0 flex-1 truncate text-xs text-zinc-300">
+
+            <span className="min-w-0 flex-1 truncate font-mono text-xs text-[#e3e2e6]">
               {option.label}
             </span>
+
             <InfoTip text={option.description} />
+
             {isOn && (
-              <span className="flex shrink-0">
+              <span className="flex shrink-0 items-center gap-0.5">
                 <button
                   type="button"
                   onClick={() => move(option.id, -1)}
                   disabled={disabled || !canMoveUp}
-                  className="px-1 text-[10px] text-zinc-600 hover:text-spotlight disabled:opacity-20"
+                  className="rounded p-1 font-mono text-[11px] text-[#949db2] hover:bg-[#1f1f23] hover:text-cyan-300 disabled:opacity-20"
                   aria-label="Move up"
                 >
                   ↑
@@ -76,7 +89,7 @@ export function ModelFallbackList({ models, onChange, disabled }: ModelFallbackL
                   type="button"
                   onClick={() => move(option.id, 1)}
                   disabled={disabled || !canMoveDown}
-                  className="px-1 text-[10px] text-zinc-600 hover:text-spotlight disabled:opacity-20"
+                  className="rounded p-1 font-mono text-[11px] text-[#949db2] hover:bg-[#1f1f23] hover:text-cyan-300 disabled:opacity-20"
                   aria-label="Move down"
                 >
                   ↓

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 interface CardProps {
   title?: string;
+  badge?: ReactNode;
   children: ReactNode;
   className?: string;
   delay?: number;
@@ -10,6 +11,7 @@ interface CardProps {
 
 export function Card({
   title,
+  badge,
   children,
   className = "",
   delay = 0,
@@ -17,15 +19,18 @@ export function Card({
 }: CardProps) {
   return (
     <section
-      className={`animate-fade-up rounded-xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-sm ${
-        compact ? "p-3" : "p-4"
+      className={`animate-fade-up glass-panel rounded-xl shadow-glass transition-all ${
+        compact ? "p-3.5 sm:p-4" : "p-4 sm:p-5"
       } ${className}`}
       style={{ animationDelay: `${delay}ms` }}
     >
       {title && (
-        <h2 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-zinc-500">
-          {title}
-        </h2>
+        <div className="circuit-border mb-3 pb-2 flex items-center justify-between">
+          <h2 className="font-mono text-xs font-semibold uppercase tracking-wider text-[#949db2]">
+            {title}
+          </h2>
+          {badge}
+        </div>
       )}
       {children}
     </section>
