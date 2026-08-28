@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { PipelineOptions } from "../types";
+import { LOCAL_MODEL_OPTIONS, DEFAULT_LOCAL_MODEL } from "../types";
 import { ModelFallbackList } from "./ModelFallbackList";
 import { LanguagePicker } from "./LanguagePicker";
 import { Card } from "./ui/Card";
@@ -53,7 +54,11 @@ export function OptionsForm({ options, onChange, disabled, delay = 0 }: OptionsF
               Translation Target
             </label>
             <span className="font-mono text-[10px] text-[#949db2]">
-              {options.no_translate ? "Native audio only" : "Gemini English translation"}
+              {options.no_translate
+                ? "Native audio only"
+                : options.backend === "local"
+                  ? "On-device English translation"
+                  : "Gemini English translation"}
             </span>
           </div>
           <div className="grid grid-cols-2 gap-1.5 rounded-lg border border-[#2c3347] bg-[#0d0e11] p-1">
@@ -69,7 +74,7 @@ export function OptionsForm({ options, onChange, disabled, delay = 0 }: OptionsF
             >
               <span className="font-mono text-xs font-semibold">Translate to English</span>
               <span className="rounded bg-primary/20 px-1.5 py-0.2 font-mono text-[10px] text-primary-light">
-                Gemini
+                {options.backend === "local" ? "Local" : "Gemini"}
               </span>
             </button>
 
@@ -86,6 +91,50 @@ export function OptionsForm({ options, onChange, disabled, delay = 0 }: OptionsF
               <span className="font-mono text-xs font-semibold">Transcribe Only</span>
               <span className="rounded bg-[#1f1f23] px-1.5 py-0.2 font-mono text-[10px] text-[#949db2]">
                 Fast
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Translation Backend: Gemini (cloud) vs Local (offline) */}
+        <div className={`flex flex-col gap-1.5 ${options.no_translate ? "pointer-events-none opacity-40" : ""}`}>
+          <div className="flex items-center gap-1.5">
+            <label className="font-mono text-[11px] font-medium tracking-wider uppercase text-[#949db2]">
+              Translation Backend
+            </label>
+            <InfoTip text="Gemini calls Google's cloud API (needs an API key + network). Local runs an on-device LLM via MLX — fully offline, no API key, no data leaves the machine." />
+          </div>
+          <div className="grid grid-cols-2 gap-1.5 rounded-lg border border-[#2c3347] bg-[#0d0e11] p-1">
+            <button
+              type="button"
+              onClick={() => patch({ backend: "gemini" })}
+              disabled={disabled || options.no_translate}
+              className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-center transition-all ${
+                options.backend === "gemini"
+                  ? "border border-primary/40 bg-primary/20 text-primary-light shadow-sm"
+                  : "text-[#949db2] hover:bg-[#1f1f23] hover:text-[#e3e2e6]"
+              }`}
+            >
+              <span className="font-mono text-xs font-semibold">Gemini</span>
+              <span className="rounded bg-[#1f1f23] px-1.5 py-0.2 font-mono text-[10px] text-[#949db2]">
+                Cloud
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                patch({ backend: "local", local_model: options.local_model ?? DEFAULT_LOCAL_MODEL })
+              }
+              disabled={disabled || options.no_translate}
+              className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-center transition-all ${
+                options.backend === "local"
+                  ? "border border-secondary/50 bg-secondary/10 text-secondary shadow-sm"
+                  : "text-[#949db2] hover:bg-[#1f1f23] hover:text-[#e3e2e6]"
+              }`}
+            >
+              <span className="font-mono text-xs font-semibold">Local</span>
+              <span className="rounded bg-[#1f1f23] px-1.5 py-0.2 font-mono text-[10px] text-[#949db2]">
+                Offline
               </span>
             </button>
           </div>
@@ -217,25 +266,53 @@ export function OptionsForm({ options, onChange, disabled, delay = 0 }: OptionsF
               Models &amp; Advanced Tuning
             </span>
             <span className="font-mono text-[10px] text-primary-light lowercase">
-              {options.no_translate ? "translation off" : `${options.models.length} ranked`}
+              {options.no_translate
+                ? "translation off"
+                : options.backend === "local"
+                  ? "local model"
+                  : `${options.models.length} ranked`}
             </span>
           </summary>
 
           <div className="p-3 space-y-3.5 border-t border-[#2c3347] bg-[#12151d]/40">
-            {/* Translation Models Ranked Chain */}
-            <div className={options.no_translate ? "pointer-events-none opacity-40" : ""}>
-              <div className="mb-1.5 flex items-center gap-1.5">
-                <span className="font-mono text-[11px] font-medium tracking-wider uppercase text-[#949db2]">
-                  Translation Model Chain
-                </span>
-                <InfoTip text="Ranked fallbacks tried in order. If a batch fails or hits quota on #1, #2 is automatically used." />
+            {options.backend === "local" ? (
+              /* Local Model Picker */
+              <div className={options.no_translate ? "pointer-events-none opacity-40" : ""}>
+                <div className="mb-1.5 flex items-center gap-1.5">
+                  <span className="font-mono text-[11px] font-medium tracking-wider uppercase text-[#949db2]">
+                    On-Device Model
+                  </span>
+                  <InfoTip text="Runs locally via MLX. First use downloads the model (several GB); cached afterwards. No API key or network needed." />
+                </div>
+                <select
+                  value={options.local_model ?? DEFAULT_LOCAL_MODEL}
+                  onChange={(e) => patch({ local_model: e.target.value })}
+                  disabled={disabled || options.no_translate}
+                  className={inputClass}
+                >
+                  {LOCAL_MODEL_OPTIONS.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label} — {m.description}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <ModelFallbackList
-                models={options.models}
-                onChange={(models) => patch({ models, model: null })}
-                disabled={disabled || options.no_translate}
-              />
-            </div>
+            ) : (
+              /* Translation Models Ranked Chain */
+              <div className={options.no_translate ? "pointer-events-none opacity-40" : ""}>
+                <div className="mb-1.5 flex items-center gap-1.5">
+                  <span className="font-mono text-[11px] font-medium tracking-wider uppercase text-[#949db2]">
+                    Translation Model Chain
+                  </span>
+                  <InfoTip text="Ranked fallbacks tried in order. If a batch fails or hits quota on #1, #2 is automatically used." />
+                </div>
+                <ModelFallbackList
+                  models={options.models}
+                  onChange={(models) => patch({ models, model: null })}
+                  disabled={disabled || options.no_translate}
+                />
+              </div>
+            )}
 
             {/* Pro Faders: Context & Max Wait */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 pt-1 border-t border-[#2c3347]/60">
@@ -255,7 +332,7 @@ export function OptionsForm({ options, onChange, disabled, delay = 0 }: OptionsF
                 />
               </div>
 
-              <div className="flex flex-col gap-1.5">
+              <div className={`flex flex-col gap-1.5 ${options.backend === "local" ? "opacity-40" : ""}`}>
                 <div className="flex justify-between items-center font-mono text-xs">
                   <span className="text-[#949db2]">Max Wait on Quota</span>
                   <span className="text-[#e3e2e6] font-semibold">{options.max_wait}s</span>
@@ -267,7 +344,7 @@ export function OptionsForm({ options, onChange, disabled, delay = 0 }: OptionsF
                   step={10}
                   value={options.max_wait}
                   onChange={(e) => patch({ max_wait: Number(e.target.value) })}
-                  disabled={disabled || options.no_translate}
+                  disabled={disabled || options.no_translate || options.backend === "local"}
                   className="pro-fader h-1.5 w-full"
                 />
               </div>

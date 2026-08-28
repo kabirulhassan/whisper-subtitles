@@ -12,3 +12,7 @@ pydantic
 
 # Optional — only needed for --isolate-vocals (vocal isolation / music removal)
 demucs
+
+# Optional — only needed for --backend local (fully offline translation via
+# an on-device LLM instead of the Gemini API)
+mlx-lm

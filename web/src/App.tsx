@@ -119,7 +119,13 @@ export default function App() {
   }
 
   const canRun = health?.ready && !running && videoPath.trim().length > 0;
-  const needsKey = !options.no_translate && health && !health.gemini_api_key;
+  const needsKey =
+    !options.no_translate &&
+    options.backend === "gemini" &&
+    health &&
+    !health.gemini_api_key;
+  const needsLocalModel =
+    !options.no_translate && options.backend === "local" && health && !health.mlx_lm;
 
   const completedStages = new Set(
     events.filter((e) => e.type === "stage_completed").map((e) => e.stage),
@@ -181,7 +187,17 @@ export default function App() {
             <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 font-mono text-xs text-amber-200">
               <span className="font-bold">⚠ GEMINI_API_KEY Missing:</span> Please add your Gemini key to{" "}
               <code className="rounded bg-black/40 px-1.5 py-0.5 text-amber-100 border border-amber-500/30">.env</code>{" "}
-              or switch to <span className="font-semibold text-white">Transcribe Only</span> mode.
+              or switch to <span className="font-semibold text-white">Local</span> backend or{" "}
+              <span className="font-semibold text-white">Transcribe Only</span> mode.
+            </div>
+          )}
+          {needsLocalModel && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 font-mono text-xs text-amber-200">
+              <span className="font-bold">⚠ mlx-lm Missing:</span> Install it with{" "}
+              <code className="rounded bg-black/40 px-1.5 py-0.5 text-amber-100 border border-amber-500/30">
+                pip install mlx-lm
+              </code>{" "}
+              to use the Local translation backend.
             </div>
           )}
 

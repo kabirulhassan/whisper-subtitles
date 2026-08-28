@@ -42,8 +42,10 @@ app.add_middleware(
 def _config_from_request(req: PipelineConfigRequest) -> PipelineConfig:
     return PipelineConfig(
         video_path=req.video_path,
+        backend=req.backend,
         model=req.model,
         models=req.models,
+        local_model=req.local_model,
         bilingual=req.bilingual,
         no_translate=req.no_translate,
         no_vad=req.no_vad,

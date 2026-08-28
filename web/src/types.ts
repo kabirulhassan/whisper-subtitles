@@ -3,6 +3,7 @@ export interface HealthStatus {
   silero_vad: boolean;
   demucs: boolean;
   google_genai: boolean;
+  mlx_lm: boolean;
   ffmpeg: boolean;
   gemini_api_key: boolean;
   ready: boolean;
@@ -10,8 +11,10 @@ export interface HealthStatus {
 
 export interface PipelineOptions {
   video_path: string;
+  backend: "gemini" | "local";
   model: string | null;
   models: string[];
+  local_model: string | null;
   bilingual: boolean;
   no_translate: boolean;
   no_vad: boolean;
@@ -91,9 +94,32 @@ export const GEMINI_MODEL_OPTIONS: GeminiModelOption[] = [
 /** Default ranked fallback chain (primary first). */
 export const DEFAULT_MODEL_FALLBACKS = GEMINI_MODEL_OPTIONS.map((m) => m.id);
 
+export interface LocalModelOption {
+  id: string;
+  label: string;
+  description: string;
+}
+
+export const LOCAL_MODEL_OPTIONS: LocalModelOption[] = [
+  {
+    id: "mlx-community/Qwen2.5-14B-Instruct-4bit",
+    label: "Qwen2.5-14B-Instruct (4-bit)",
+    description: "Best offline quality — needs 16GB+ RAM",
+  },
+  {
+    id: "mlx-community/Qwen2.5-7B-Instruct-4bit",
+    label: "Qwen2.5-7B-Instruct (4-bit)",
+    description: "Faster, lower RAM, somewhat weaker translations",
+  },
+];
+
+export const DEFAULT_LOCAL_MODEL = LOCAL_MODEL_OPTIONS[0].id;
+
 export const DEFAULT_OPTIONS: Omit<PipelineOptions, "video_path"> = {
+  backend: "gemini",
   model: null,
   models: [...DEFAULT_MODEL_FALLBACKS],
+  local_model: null,
   bilingual: false,
   no_translate: false,
   no_vad: false,

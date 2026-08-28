@@ -43,10 +43,19 @@ def main() -> int:
                     "it to English subtitles (.srt)."
     )
     parser.add_argument("video", help="Path to the input .mp4 file")
+    parser.add_argument("--backend", choices=["gemini", "local"], default="gemini",
+                        help="Translation backend: 'gemini' (cloud API, default) "
+                             "or 'local' (fully offline, runs an on-device LLM "
+                             "via mlx-lm — no API key, no network needed)")
     parser.add_argument("--model", default=None,
                         help="Gemini model id for translation "
                              "(default: gemini-2.5-flash; e.g. gemini-3.5-flash "
                              "or gemini-2.5-pro for harder audio)")
+    parser.add_argument("--local-model", default=None,
+                        help="MLX model id/path for --backend local "
+                             "(default: mlx-community/Qwen2.5-14B-Instruct-4bit; "
+                             "e.g. mlx-community/Qwen2.5-7B-Instruct-4bit for a "
+                             "smaller/faster model on lower-RAM Macs)")
     parser.add_argument("--bilingual", action="store_true",
                         help="Write original text and English in each cue")
     parser.add_argument("--no-translate", action="store_true",
@@ -84,7 +93,9 @@ def main() -> int:
 
     config = PipelineConfig(
         video_path=args.video,
+        backend=args.backend,
         model=args.model,
+        local_model=args.local_model,
         bilingual=args.bilingual,
         no_translate=args.no_translate,
         no_vad=args.no_vad,

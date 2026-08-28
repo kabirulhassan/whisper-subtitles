@@ -25,7 +25,7 @@ Whisper auto-detects from all ~99 languages and can misfire on acoustically/scri
 - **Apple Silicon Mac** (M1–M4) — mlx-whisper runs on the Metal GPU and is Apple-Silicon only.
 - Python 3.9+
 - [ffmpeg](https://ffmpeg.org/) (`brew install ffmpeg`)
-- A **Gemini API key** for the translation stage — get one from [Google AI Studio](https://aistudio.google.com/apikey).
+- A **Gemini API key** for the translation stage (default backend) — get one from [Google AI Studio](https://aistudio.google.com/apikey). Not needed if you use `--backend local` (see [Running fully offline](#running-fully-offline---backend-local)) or `--no-translate`.
 
 > **Gemini API key vs. Vertex AI:** for a personal tool, use the **Developer API key** (what this project uses) — no GCP project, service account, or IAM setup. Vertex AI only matters if you need GCP billing/quotas/IAM or data-residency controls. The same `google-genai` SDK can target Vertex later by setting `vertexai=True`, so there's no lock-in.
 
@@ -88,7 +88,9 @@ Options:
 
 | Flag                 | Effect                                                                                                                                                                |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--backend {gemini,local}` | Translation backend: `gemini` (cloud API, default) or `local` (fully offline, on-device LLM via [mlx-lm](https://github.com/ml-explore/mlx-examples/tree/main/llms/mlx_lm) — no API key, no network)  |
 | `--model MODEL`      | Gemini model for translation (default `gemini-2.5-flash`; e.g. `--model gemini-3.5-flash` or `gemini-2.5-pro` for the hardest audio)                                  |
+| `--local-model MODEL`| MLX model id for `--backend local` (default `mlx-community/Qwen2.5-14B-Instruct-4bit`; e.g. `Qwen2.5-7B-Instruct-4bit` for lower RAM / faster)                        |
 | `--bilingual`        | Write the original line **and** the English translation in each cue                                                                                                   |
 | `--no-translate`     | Transcribe only — output the native (mixed-language) transcript                                                                                                       |
 | `--no-vad`           | Disable voice-activity segmentation (transcribe the whole file in one pass)                                                                                           |
@@ -124,6 +126,20 @@ python generate.py video.mp4 --isolate-vocals --start 15:00 --end 16:00 --no-tra
 
 It runs on the Apple Silicon **GPU** (falls back to CPU if needed) and is **slow**, so the separated vocals are cached (`output/.cache/<name>.vocals.npy`) and the flag is folded into the checkpoint identity — toggling it forces a clean re-transcription. First run downloads the Demucs model (~few hundred MB). Smoke-test a music-heavy minute first to confirm it actually helps before committing to a full run.
 
+### Running fully offline (`--backend local`)
+
+Transcription (mlx-whisper) already runs entirely on-device. To make **translation** offline too, swap the Gemini API for an on-device LLM run via [mlx-lm](https://github.com/ml-explore/mlx-examples/tree/main/llms/mlx_lm) on the Apple Silicon GPU — no API key, no network call, nothing leaves the machine:
+
+```bash
+pip install mlx-lm
+python generate.py video.mp4 --backend local
+# first run downloads the model (a few GB) to ~/.cache/huggingface, then reuses it
+```
+
+The default is `mlx-community/Qwen2.5-14B-Instruct-4bit` — chosen because it follows the pipeline's structured-JSON batching prompt reliably and has reasonable Bengali/Hindi comprehension for a general-purpose model (16GB+ RAM recommended). For lower-RAM Macs or faster (but somewhat weaker) translation, use `--local-model mlx-community/Qwen2.5-7B-Instruct-4bit`.
+
+Trade-offs vs. Gemini: no cost, no rate limits, no key, fully private — but quality on ambiguous or idiomatic Bengali/Hindi/English code-switching is a step below Gemini's flash/pro tiers, and it's slower per batch on typical Mac hardware. `--max-wait` and multi-model fallback chains don't apply to the local backend (there's no quota to wait out). The GUI has the same toggle under **Translation Backend**.
+
 ### Free-tier friendly (auto-pause & resume)
 
 The free Gemini tier has per-minute and per-day limits. This script handles both:
@@ -143,7 +159,7 @@ python generate.py ~/Videos/interview.mp4 --bilingual
 ## Notes
 
 - **First run** downloads the `large-v3` MLX weights (~~3 GB) from Hugging Face to `~~/.cache/huggingface`; later runs reuse them.
-- The audio never leaves your machine — only the **transcribed text** is sent to the Gemini API for translation. Use `--no-translate` to keep everything fully local.
+- The audio never leaves your machine — only the **transcribed text** is sent to the Gemini API for translation. Use `--no-translate`, or `--backend local` for actual translation, to keep everything fully local.
 - Translation is batched to keep cost low. Each batch is sent with a **context radius** of neighboring cues (`--context`, default 12) included as read-only context — and the already-finalized English of done neighbors — so Gemini can use contiguous surrounding text to resolve pronouns, names, and sentences that span cues, and to fix likely transcription errors. Gemini input is cheap, so this costs little. If a batch fails, those cues keep their original text so the timeline is never broken.
 - The `output/` directory is created automatically and is git-ignored.
 

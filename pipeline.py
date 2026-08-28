@@ -27,6 +27,8 @@ class PipelineConfig:
     video_path: str
     model: str | None = None
     models: list[str] | None = None
+    backend: Literal["gemini", "local"] = "gemini"
+    local_model: str | None = None
     bilingual: bool = False
     no_translate: bool = False
     no_vad: bool = False
@@ -183,7 +185,7 @@ def parse_languages(languages_str: str) -> tuple[list[str], str]:
 
 
 def resolve_models(config: PipelineConfig) -> list[str]:
-    """Return the ranked Gemini model fallback list for translation."""
+    """Return the ranked Gemini model fallback list for translation (Gemini backend only)."""
     if config.models:
         models = [m.strip() for m in config.models if m and str(m).strip()]
         if models:
@@ -214,15 +216,23 @@ def validate_dependencies(config: PipelineConfig) -> str | None:
                     "Install it with: pip install demucs")
 
     if not config.no_translate:
-        try:
-            import google.genai  # noqa: F401
-        except ImportError:
-            return ("Missing dependency (google-genai). "
-                    "Install dependencies with: pip install -r requirements.txt")
-        if not (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")):
-            return ("GEMINI_API_KEY is not set. "
-                    "Add it to a .env file (see .env.example) or export it. "
-                    "Or run with no_translate to skip the translation stage.")
+        if config.backend == "local":
+            try:
+                import mlx_lm  # noqa: F401
+            except ImportError:
+                return ("Missing dependency (mlx-lm) for the local translation "
+                        "backend. Install it with: pip install mlx-lm")
+        else:
+            try:
+                import google.genai  # noqa: F401
+            except ImportError:
+                return ("Missing dependency (google-genai). "
+                        "Install dependencies with: pip install -r requirements.txt")
+            if not (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")):
+                return ("GEMINI_API_KEY is not set. "
+                        "Add it to a .env file (see .env.example) or export it. "
+                        "Or run with --backend local for fully offline translation, "
+                        "or --no-translate to skip the translation stage.")
     return None
 
 
@@ -234,6 +244,7 @@ def check_health() -> dict[str, Any]:
         "silero_vad": False,
         "demucs": False,
         "google_genai": False,
+        "mlx_lm": False,
         "ffmpeg": False,
         "gemini_api_key": False,
     }
@@ -255,6 +266,11 @@ def check_health() -> dict[str, Any]:
     try:
         import google.genai  # noqa: F401
         status["google_genai"] = True
+    except Exception:
+        pass
+    try:
+        import mlx_lm  # noqa: F401
+        status["mlx_lm"] = True
     except Exception:
         pass
     import shutil
@@ -561,8 +577,13 @@ def run_pipeline(
 
     # --- stage 2: translate ---
     if not config.no_translate:
-        import translate as translate_mod
-        models = resolve_models(config)
+        local_backend = config.backend == "local"
+        if local_backend:
+            import translate_local as translate_mod
+            models = [config.local_model] if config.local_model else None
+        else:
+            import translate as translate_mod
+            models = resolve_models(config)
         _emit(ProgressEvent(type="stage_started", stage="translate",
                             message=f"Translating…"))
 
@@ -578,7 +599,7 @@ def run_pipeline(
             )
         except PipelineCancelled:
             raise
-        except translate_mod.QuotaExhausted as e:
+        except (getattr(translate_mod, "QuotaExhausted", ()) or ()) as e:
             save(translations)
             _emit(ProgressEvent(
                 type="quota_paused",
@@ -590,6 +611,8 @@ def run_pipeline(
                 cues=cues,
                 error=str(e),
             )
+        except (getattr(translate_mod, "LocalModelUnavailable", ()) or ()) as e:
+            raise PipelineError(str(e)) from e
         except Exception as e:
             raise PipelineError(f"translation failed: {e}") from e
 

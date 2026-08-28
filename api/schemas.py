@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
 class PipelineConfigRequest(BaseModel):
     video_path: str
+    backend: Literal["gemini", "local"] = "gemini"
     model: str | None = None
     models: list[str] | None = None
+    local_model: str | None = None
     bilingual: bool = False
     no_translate: bool = False
     no_vad: bool = False
